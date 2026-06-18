@@ -38,7 +38,7 @@ GOOGLE_API_KEY = st.secrets["GOOGLE_API_KEY"]
 def load_rag():
  docs = []
 
-for file in os.listdir("data/raw"):
+ for file in os.listdir("data/raw"):
     if file.endswith(".pdf"):
         docs.extend(
             DoclingLoader(
@@ -46,50 +46,47 @@ for file in os.listdir("data/raw"):
             ).load()
         )
 
-chunks = RecursiveCharacterTextSplitter(
+ chunks = RecursiveCharacterTextSplitter(
     chunk_size=512,
     chunk_overlap=50
-).split_documents(docs)
+ ).split_documents(docs)
 
-embeddings = HuggingFaceEmbeddings(
+ embeddings = HuggingFaceEmbeddings(
     model_name="sentence-transformers/all-MiniLM-L6-v2"
-)
+ )
 
-vectorstore = QdrantVectorStore.from_documents(
+ vectorstore = QdrantVectorStore.from_documents(
     documents=chunks,
     embedding=embeddings,
     path="./qdrant/dense",
     collection_name="research_papers"
-)
+ )
 
-retriever = vectorstore.as_retriever(
+ retriever = vectorstore.as_retriever(
     search_kwargs={"k": 5}
-)
+ )
 
-llm = ChatGoogleGenerativeAI(
+ llm = ChatGoogleGenerativeAI(
     model="gemini-2.5-flash",
     google_api_key=GOOGLE_API_KEY,
     temperature=0
-)
+ )
 
-prompt = ChatPromptTemplate.from_template("""
-Answer the question using only the provided context.
+ prompt = ChatPromptTemplate.from_template("""
+ Answer the question using only the provided context.
 
-Context:
-{context}
+ Context:
+ {context}
 
-Question:
-{question}
+ Question:
+ {question}
 
-If the answer is not found in the context,
-say "I could not find this in the provided papers."
-""")
+ If the answer is not found in the context,
+ say "I could not find this in the provided papers."
+ """)
 
-chain = prompt | llm
-
+ chain = prompt | llm
 return retriever, chain
-
-
 retriever, chain = load_rag()
 
 def ask_question(query):
