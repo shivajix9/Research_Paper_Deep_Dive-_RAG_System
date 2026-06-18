@@ -45,16 +45,12 @@ def load_rag():
  )
 
 # Load Existing Qdrant DB
- client = QdrantClient(
-    path="./qdrant/dense"
- )
-
- vectorstore = QdrantVectorStore(
-    client=client,
-    collection_name="research_papers",
+ vectorstore = QdrantVectorStore.from_documents(
+    documents=chunks,
     embedding=embeddings,
-    retrieval_mode=RetrievalMode.DENSE
- )
+    path="./qdrant_db",
+    collection_name="research_papers"
+)
 
  retriever = vectorstore.as_retriever(
     search_kwargs={"k": 5}
