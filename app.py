@@ -93,13 +93,8 @@ return retriever, chain
 retriever, chain = load_rag()
 
 def ask_question(query):
-
-
-docs = retriever.invoke(query)
-
-context = "\n\n".join(
-    doc.page_content for doc in docs
-)
+  docs = retriever.invoke(query)
+  context = "\n\n".join(doc.page_content for doc in docs)
 
 response = chain.invoke({
     "context": context,
