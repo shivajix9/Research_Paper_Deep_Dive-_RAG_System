@@ -23,6 +23,16 @@ page_icon="📄"
 )
 
 st.title("📄 Research Paper Deep Dive")
+
+st.markdown("""
+### Large Language Models & Instruction Tuning
+Ask questions across 15 research papers covering:
+- Instruction Tuning
+- Reinforcement Learning from Human Feedback (RLHF)
+- LLM Alignment
+- Fine-Tuning Techniques
+- Efficient Transformer Architectures
+""")
 st.write("Ask questions about your research papers")
 
 @st.cache_resource
