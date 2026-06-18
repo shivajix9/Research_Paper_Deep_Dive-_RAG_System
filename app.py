@@ -1,104 +1,125 @@
 import os
+from pathlib import Path
+
 import streamlit as st
-
-from langchain_docling.loader import DoclingLoader
-from langchain_text_splitters import RecursiveCharacterTextSplitter
-from langchain_huggingface import HuggingFaceEmbeddings
-from langchain_qdrant import QdrantVectorStore
-from langchain_google_genai import ChatGoogleGenerativeAI
+from dotenv import load_dotenv
 from langchain_core.prompts import ChatPromptTemplate
+from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain_huggingface import HuggingFaceEmbeddings
+from langchain_qdrant import QdrantVectorStore, RetrievalMode
+from qdrant_client import QdrantClient
 
-# Page Config
+
+load_dotenv()
+
+GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
+QDRANT_PATH = Path("./qdrant/dense")
+COLLECTION_NAME = "research_papers"
+
 
 st.set_page_config(
-page_title="Research Paper Deep Dive",
-page_icon="📄"
+    page_title="Research Paper Deep Dive",
+    page_icon="📄",
 )
 
 st.title("📄 Research Paper Deep Dive")
 
-st.markdown("""
-
+st.markdown(
+    """
 ### Large Language Models & Instruction Tuning
 
 Ask questions across 15 research papers covering:
+- Instruction Tuning
+- Reinforcement Learning from Human Feedback (RLHF)
+- LLM Alignment
+- Fine-Tuning Techniques
+- Efficient Transformer Architectures
+"""
+)
 
-* Instruction Tuning
-* RLHF (Reinforcement Learning from Human Feedback)
-* LLM Alignment
-* Fine-Tuning Techniques
-* Efficient Transformer Architectures
-  """)
+st.write("Ask questions about your research papers")
 
-# API Key
-
-GOOGLE_API_KEY = st.secrets["GOOGLE_API_KEY"]
 
 @st.cache_resource
 def load_rag():
-  docs = []
-  for file in os.listdir("data/raw"):
-    if file.endswith(".pdf"):
-      docs.extend(
-        DoclingLoader(f"data/raw/{file}").load())
-  chunks = RecursiveCharacterTextSplitter(chunk_size=512,chunk_overlap=50).split_documents(docs)
-  embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
-
-  vectorstore = QdrantVectorStore.from_documents(
-    documents=chunks,
-    embedding=embeddings,
-    path="./qdrant/dense",
-    collection_name="research_papers"
-   )
-
-   retriever = vectorstore.as_retriever(
-    search_kwargs={"k": 5}
-   )
-
-   llm = ChatGoogleGenerativeAI(
-    model="gemini-2.5-flash",
-    google_api_key=GOOGLE_API_KEY,
-    temperature=0
+    embeddings = HuggingFaceEmbeddings(
+        model_name="sentence-transformers/all-MiniLM-L6-v2"
     )
 
-   prompt = ChatPromptTemplate.from_template("""
-   Answer the question using only the provided context.
+    client = QdrantClient(
+        path=str(QDRANT_PATH)
+    )
 
-   Context:
-   {context}
+    vectorstore = QdrantVectorStore(
+        client=client,
+        collection_name=COLLECTION_NAME,
+        embedding=embeddings,
+        retrieval_mode=RetrievalMode.DENSE,
+    )
 
-   Question:
-   {question}
+    retriever = vectorstore.as_retriever(
+        search_kwargs={"k": 5}
+    )
 
-   If the answer is not found in the context,
-   say "I could not find this in the provided papers."
-   """)
+    llm = ChatGoogleGenerativeAI(
+        model="gemini-2.5-flash",
+        google_api_key=GOOGLE_API_KEY,
+        temperature=0,
+    )
 
-   chain = prompt | llm
-return retriever, chain
-retriever, chain = load_rag()
+    prompt = ChatPromptTemplate.from_template(
+        """
+Answer the question using only the provided context.
+
+Context:
+{context}
+
+Question:
+{question}
+
+If the answer is not available in the context,
+say "I could not find this in the provided papers."
+"""
+    )
+
+    chain = prompt | llm
+
+    return retriever, chain
+
 
 def ask_question(query):
-  docs = retriever.invoke(query)
-  context = "\n\n".join(doc.page_content for doc in docs)
+    docs = retriever.invoke(query)
+    context = "\n\n".join(doc.page_content for doc in docs)
 
-response = chain.invoke({
-    "context": context,
-    "question": query
-})
+    response = chain.invoke(
+        {
+            "context": context,
+            "question": query,
+        }
+    )
 
-return response.content, docs
+    return response.content, docs
 
 
-query = st.text_input(
-"Ask a question about the research papers"
-)
+if not GOOGLE_API_KEY:
+    st.error("Add GOOGLE_API_KEY to your .env file before asking questions.")
+    st.stop()
+
+if not QDRANT_PATH.exists():
+    st.error(f"Qdrant database not found at {QDRANT_PATH}.")
+    st.stop()
+
+
+retriever, chain = load_rag()
+
+query = st.text_input("Ask a question")
 
 if st.button("Submit") and query:
- answer, docs = ask_question(query)
- st.subheader("Answer")
- st.write(answer)
-with st.expander("Sources"):
- for doc in docs:
-  st.write(doc.metadata)
+    answer, docs = ask_question(query)
 
+    st.subheader("Answer")
+    st.write(answer)
+
+    with st.expander("Sources"):
+        for doc in docs:
+            st.write(doc.metadata)
