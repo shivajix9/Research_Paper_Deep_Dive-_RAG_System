@@ -58,7 +58,7 @@ embeddings = HuggingFaceEmbeddings(
 vectorstore = QdrantVectorStore.from_documents(
     documents=chunks,
     embedding=embeddings,
-    path="./qdrant_db",
+    path="./qdrant/dense",
     collection_name="research_papers"
 )
 
